@@ -1,0 +1,2 @@
+Paquete del proyecto de simulación serial y paralela de circuitos RC.
+Consulte README.md para instalación, ejecución y reproducción de resultados.

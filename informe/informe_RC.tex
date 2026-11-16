@@ -1,0 +1,906 @@
+
+\documentclass[11pt,a4paper]{article}
+\usepackage[spanish,es-nodecimaldot]{babel}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{geometry}
+\geometry{margin=2.4cm}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{siunitx}
+\sisetup{output-decimal-marker={,},group-separator={.}}
+\usepackage{float}
+\usepackage{caption}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{fancyhdr}
+\setlength{\parskip}{0.45em}
+\setlength{\parindent}{0pt}
+\pagestyle{fancy}
+\fancyhf{}
+\lhead{Simulación serial y paralela de circuitos RC}
+\rhead{\thepage}
+\hypersetup{colorlinks=true,linkcolor=blue,urlcolor=blue,citecolor=blue}
+
+\title{\textbf{Simulación serial y paralela del proceso de carga y descarga de un capacitor en un circuito RC}}
+\author{
+Integrante 1: \textit{Jesús Santiago Ojeda González}\\
+Integrante 2: \textit{Edwin Almir Salamanca Rodriguez}\\[0.4em]
+\textit{Algoritmos y Arquitectura Computacional de Alto Rendimiento}\\[0.4em]
+\textit{Universidad Industrial de Santander}\\[0.4em]
+Docente: \textit{Sergio Augusto Gelvez Cortes}
+}
+
+\date{\textit{[Noviembre 2026]}}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+En este proyecto se desarrolla una simulación computacional de los procesos de carga y descarga de capacitores en circuitos resistivo-capacitivos (RC), mediante la comparación de una implementación serial y una paralela en Python. El modelo físico se describe a través de ecuaciones diferenciales ordinarias de primer orden, cuya solución numérica se obtiene utilizando el método de Euler explícito. Se simulan conjuntos de circuitos independientes con diferentes valores de resistencia y capacitancia, considerando tamaños de problema de 100, 500, 1000, 5000 y 10000 circuitos. La implementación paralela utiliza la biblioteca Numba y el constructor `prange` para distribuir el cálculo de los circuitos entre varios hilos de procesamiento. La verificación se realiza mediante la comparación de los resultados numéricos con las soluciones analíticas y la comprobación de concordancia entre las versiones serial y paralela. En la tercera ronda experimental, realizada con 15 repeticiones por configuración y orden de ejecución aleatorizado, se obtuvo para 10000 circuitos una aceleración de 5,8334 utilizando seis hilos, reduciendo el tiempo mediano de ejecución de 0,576225 s a 0,098780 s, equivalente a una disminución aproximada del 82,86 porciento . Los resultados muestran que la paralelización ofrece mayores beneficios cuando el tamaño del problema es suficientemente grande.
+\end{abstract}
+
+\textbf{Palabras clave:} circuito RC, carga, descarga, método de Euler, Python, Numba, paralelización, speedup, eficiencia.
+
+\section{Introducción}
+Los circuitos resistivo-capacitivos, conocidos como circuitos RC, están constituidos por una resistencia y un capacitor, y permiten estudiar fenómenos eléctricos transitorios en los que el voltaje del capacitor varía con el tiempo. Durante el proceso de carga, el capacitor almacena energía eléctrica y su voltaje aumenta progresivamente hasta aproximarse al voltaje suministrado por la fuente. Por otra parte, durante la descarga, el capacitor libera la energía almacenada y su voltaje disminuye progresivamente hasta aproximarse a cero. Estos procesos pueden describirse mediante ecuaciones diferenciales ordinarias cuya solución permite analizar la evolución temporal del sistema.
+
+Desde el punto de vista computacional, la simulación de múltiples circuitos RC representa una oportunidad para estudiar estrategias de procesamiento paralelo. Si cada circuito posee valores propios de resistencia y capacitancia, y sus condiciones iniciales son independientes, la evolución de uno de ellos no requiere conocer los resultados de los demás. Esta característica permite distribuir el cálculo de diferentes circuitos entre varios hilos de procesamiento, reduciendo potencialmente el tiempo total de ejecución.
+
+En este trabajo se desarrolla un simulador de los procesos de carga y descarga de capacitores RC mediante el lenguaje de programación Python. Se implementan dos estrategias de cálculo: una versión serial, que procesa los circuitos secuencialmente, y una versión paralela, que distribuye el cálculo entre varios hilos utilizando la biblioteca Numba. Posteriormente, se comparan ambas implementaciones mediante pruebas de verificación numérica y mediciones de rendimiento, considerando diferentes cantidades de circuitos y configuraciones de hilos. De esta manera, se busca evaluar tanto la precisión del modelo numérico como los beneficios y limitaciones de la paralelización en la simulación de fenómenos físicos.
+
+\section{Planteamiento del problema}
+
+La simulación numérica de circuitos RC permite estudiar la evolución temporal del voltaje durante los procesos de carga y descarga de un capacitor. Sin embargo, cuando se requiere analizar una cantidad elevada de circuitos con diferentes valores de resistencia y capacitancia, el número de operaciones computacionales aumenta considerablemente, especialmente al calcular la evolución del sistema en múltiples instantes de tiempo.
+
+Una implementación serial procesa cada circuito de manera secuencial, lo que puede incrementar el tiempo requerido a medida que aumenta el tamaño del problema. Frente a esta situación, la computación paralela ofrece una alternativa para distribuir el trabajo entre varios hilos de procesamiento, aprovechando la independencia existente entre los circuitos simulados.
+
+Por lo tanto, surge la necesidad de evaluar si la implementación paralela permite reducir significativamente el tiempo de ejecución respecto a la implementación serial, sin afectar la precisión de los resultados numéricos.
+
+A partir de lo anterior, se plantea la siguiente pregunta de investigación: ¿cómo influye la cantidad de circuitos simulados y el número de hilos de procesamiento en el rendimiento computacional de una simulación de carga y descarga de capacitores RC, al comparar una implementación serial con una paralela?
+
+\section{Objetivos}
+\subsection{Objetivo general}
+Desarrollar y evaluar simulaciones serial y paralela de los procesos de carga y descarga de capacitores en circuitos RC, comparando su precisión numérica y su rendimiento computacional.
+
+\subsection{Objetivos específicos}
+\begin{itemize}[leftmargin=*]
+    \item Formular el modelo matemático de carga y descarga de un circuito RC.
+    \item Implementar el método de Euler explícito para resolver numéricamente las ecuaciones diferenciales.
+    \item Desarrollar una versión serial y una versión paralela en Python utilizando Numba.
+    \item Verificar los resultados numéricos frente a las soluciones analíticas y comparar las salidas seriales y paralelas.
+    \item Medir los tiempos de ejecución para diferentes tamaños de problema y cantidades de hilos.
+    \item Calcular e interpretar el speedup y la eficiencia paralela.
+\end{itemize}
+
+
+\section{Modelo físico}
+
+El sistema estudiado corresponde a un circuito resistivo-capacitivo
+(RC) en serie, compuesto por una fuente de voltaje continuo, una
+resistencia y un capacitor. Se analizan dos situaciones: la carga
+del capacitor, cuando se conecta la fuente de alimentación, y la
+descarga, cuando la fuente se desconecta y el capacitor libera la
+energía almacenada a través de la resistencia.
+
+Se considera un modelo ideal en el que la resistencia y la
+capacitancia permanecen constantes, la fuente proporciona un
+voltaje continuo y se desprecian los efectos parásitos de los
+componentes y las conexiones.
+
+\subsection{Carga del capacitor}
+
+Durante el proceso de carga, la fuente suministra energía al
+circuito y el voltaje del capacitor aumenta progresivamente.
+Aplicando la ley de voltajes de Kirchhoff a la malla del circuito,
+se obtiene:
+
+\[
+V_s=V_R+V_C.
+\]
+
+De acuerdo con la ley de Ohm, el voltaje en la resistencia está
+dado por:
+
+\[
+V_R=IR,
+\]
+
+donde $I$ representa la corriente eléctrica y $R$ la resistencia
+del circuito. Por otra parte, la corriente que circula por un
+capacitor ideal se expresa como:
+
+\[
+I=C\frac{dV_C}{dt},
+\]
+
+donde $C$ es la capacitancia y $dV_C/dt$ representa la variación
+temporal del voltaje del capacitor.
+
+Sustituyendo ambas relaciones en la ecuación de Kirchhoff:
+
+\[
+V_s=R\left(C\frac{dV_C}{dt}\right)+V_C.
+\]
+
+Reorganizando y despejando la derivada, se obtiene la ecuación
+diferencial que describe el proceso de carga:
+
+\[
+\boxed{
+\frac{dV_C}{dt}=\frac{V_s-V_C}{RC}
+}
+\]
+
+Si el capacitor inicia descargado, la condición inicial es
+$V_C(0)=0$. La solución analítica de esta ecuación diferencial es:
+
+\[
+\boxed{
+V_C(t)=V_s\left(1-e^{-t/(RC)}\right)
+}
+\]
+
+Esta expresión muestra que el voltaje del capacitor aumenta
+exponencialmente y se aproxima al voltaje de la fuente a medida
+que transcurre el tiempo.
+
+\subsection{Descarga del capacitor}
+
+Durante la descarga, la fuente se desconecta y el capacitor
+entrega la energía almacenada a través de la resistencia. Aplicando
+la ley de voltajes de Kirchhoff y considerando una corriente de
+referencia en el sentido de descarga, se tiene:
+
+\[
+V_R=V_C.
+\]
+
+Por la ley de Ohm:
+
+\[
+V_R=IR.
+\]
+
+Para el capacitor, la corriente asociada a esta convención de
+descarga se expresa como:
+
+\[
+I=-C\frac{dV_C}{dt}.
+\]
+
+Sustituyendo en la ecuación anterior:
+
+\[
+-RC\frac{dV_C}{dt}=V_C.
+\]
+
+Al despejar la derivada se obtiene:
+
+\[
+\boxed{
+\frac{dV_C}{dt}=-\frac{V_C}{RC}
+}
+\]
+
+Si el voltaje inicial del capacitor es $V_C(0)=V_0$, la solución
+analítica correspondiente es:
+
+\[
+\boxed{
+V_C(t)=V_0e^{-t/(RC)}
+}
+\]
+
+La expresión indica que el voltaje disminuye exponencialmente
+durante la descarga, aproximándose a cero conforme transcurre
+el tiempo.
+
+\subsection{Constante de tiempo}
+
+La constante de tiempo de un circuito RC se define como:
+
+\[
+\boxed{\tau=RC}
+\]
+
+donde $R$ se expresa en ohmios, $C$ en faradios y $\tau$ en
+segundos. Esta magnitud caracteriza la rapidez con la que ocurre
+el proceso transitorio.
+
+Durante la carga, cuando $t=\tau$, el voltaje del capacitor
+alcanza aproximadamente el $63,2\,\%$ del voltaje final de la
+fuente:
+
+\[
+V_C(\tau)=V_s(1-e^{-1})\approx0,632V_s.
+\]
+
+Durante la descarga, en ese mismo instante, el voltaje disminuye
+hasta aproximadamente el $36,8\,\%$ de su valor inicial:
+
+\[
+V_C(\tau)=V_0e^{-1}\approx0,368V_0.
+\]
+
+Para los intervalos de resistencia y capacitancia considerados
+en este proyecto, la constante de tiempo presenta valores entre
+$0,1$ y $2,35$ segundos.
+
+\section{Método numérico}
+
+Para obtener la evolución temporal del voltaje del capacitor
+mediante simulación computacional se empleó el método de Euler
+explícito. Este método permite aproximar la solución de una
+ecuación diferencial ordinaria a partir de valores calculados
+en instantes discretos.
+
+En general, para una ecuación diferencial de la forma:
+
+\[
+\frac{dy}{dt}=f(t,y),
+\]
+
+el método de Euler explícito aproxima el valor de la variable
+en el siguiente instante mediante:
+
+\[
+\boxed{
+y_{n+1}=y_n+\Delta t\,f(t_n,y_n)
+}
+\]
+
+donde $y_n$ es el valor actual de la variable, $y_{n+1}$ es
+su valor aproximado en el siguiente instante y $\Delta t$
+representa el paso temporal de la simulación.
+
+\subsection{Discretización del proceso de carga}
+
+La ecuación diferencial de carga obtenida a partir del modelo
+físico es:
+
+\[
+\frac{dV_C}{dt}=\frac{V_s-V_C}{RC}.
+\]
+
+Identificando la función correspondiente como:
+
+\[
+f(t,V_C)=\frac{V_s-V_C}{RC},
+\]
+
+y aplicando la fórmula general de Euler, se obtiene:
+
+\[
+V_{C,n+1}=V_{C,n}+
+\Delta t\left(\frac{V_s-V_{C,n}}{RC}\right).
+\]
+
+Por tanto, la expresión numérica utilizada para calcular la
+carga del capacitor es:
+
+\[
+\boxed{
+V_{C,n+1}=V_{C,n}+
+\frac{\Delta t}{RC}(V_s-V_{C,n})
+}
+\]
+
+\subsection{Discretización del proceso de descarga}
+
+Para la descarga, la ecuación diferencial es:
+
+\[
+\frac{dV_C}{dt}=-\frac{V_C}{RC}.
+\]
+
+En este caso, la función que representa la derivada es:
+
+\[
+f(t,V_C)=-\frac{V_C}{RC}.
+\]
+
+Aplicando el método de Euler explícito:
+
+\[
+V_{C,n+1}=V_{C,n}+
+\Delta t\left(-\frac{V_{C,n}}{RC}\right).
+\]
+
+Finalmente, la expresión utilizada para la simulación de la
+descarga es:
+
+\[
+\boxed{
+V_{C,n+1}=V_{C,n}-
+\frac{\Delta t}{RC}V_{C,n}
+}
+\]
+
+\subsection{Paso temporal y estabilidad numérica}
+
+El paso temporal determina el intervalo entre dos
+actualizaciones consecutivas de la simulación. En este trabajo
+se utilizó:
+
+\[
+\Delta t=0,001\ \text{s}.
+\]
+
+Para analizar el comportamiento de la aproximación de Euler
+en la descarga, la ecuación discreta puede escribirse como:
+
+\[
+V_{C,n+1}=V_{C,n}
+\left(1-\frac{\Delta t}{RC}\right).
+\]
+
+La estabilidad de esta actualización requiere que:
+
+\[
+0<\frac{\Delta t}{RC}<2.
+\]
+
+Además, para que el voltaje decrezca sin cambiar artificialmente
+de signo entre pasos consecutivos, se considera conveniente
+que:
+
+\[
+0<\frac{\Delta t}{RC}\leq1.
+\]
+
+En el intervalo de parámetros utilizado, la constante de tiempo
+mínima es $\tau_{\min}=0,1\ \text{s}$. Por consiguiente, la
+relación máxima entre el paso temporal y la constante de tiempo
+es:
+
+\[
+\frac{\Delta t}{\tau_{\min}}
+=
+\frac{0,001}{0,1}
+=0,01.
+\]
+
+Este valor satisface la condición anterior y permite utilizar
+el paso temporal seleccionado para las simulaciones realizadas.
+
+El intervalo de simulación comprendió desde $t_0=0$ hasta
+$t_f=11,75\ \text{s}$. El número de pasos temporales se
+determinó mediante:
+
+\[
+n=\frac{t_f-t_0}{\Delta t}
+=\frac{11,75}{0,001}
+=11750.
+\]
+
+Al incluir el instante inicial, cada trayectoria contiene
+11751 instantes temporales.
+
+
+
+\section{Parámetros y condiciones de simulación}
+
+Para realizar las simulaciones se establecieron parámetros
+eléctricos y computacionales que permiten estudiar los procesos
+de carga y descarga de diferentes circuitos RC. Se consideró
+una fuente de voltaje continuo de $V_s=5\ \text{V}$ y se
+generaron distintos valores de resistencia y capacitancia
+dentro de intervalos definidos.
+
+\subsection{Parámetros eléctricos}
+
+Los valores de resistencia y capacitancia se seleccionaron
+dentro de los siguientes intervalos:
+
+\[
+1000\ \Omega \leq R \leq 5000\ \Omega
+\]
+
+\[
+100\times10^{-6}\ \text{F}
+\leq C \leq
+470\times10^{-6}\ \text{F}.
+\]
+
+Para cada circuito, los valores de resistencia y capacitancia
+se generaron mediante distribuciones uniformes independientes
+dentro de los intervalos establecidos. De esta manera, cada
+circuito presenta una constante de tiempo propia, determinada
+por:
+
+\[
+\tau_i=R_iC_i.
+\]
+
+A partir de los intervalos seleccionados, la constante de
+tiempo mínima y máxima corresponden a:
+
+\[
+\tau_{\min}=(1000)(100\times10^{-6})
+=0,1\ \text{s},
+\]
+
+\[
+\tau_{\max}=(5000)(470\times10^{-6})
+=2,35\ \text{s}.
+\]
+
+La generación de los parámetros se realizó utilizando un
+generador de números aleatorios con semilla fija, lo que
+permite reproducir los mismos conjuntos de valores para un
+mismo tamaño de problema. Para cada tamaño de simulación,
+los arreglos de resistencia y capacitancia se mantuvieron
+iguales al comparar las implementaciones serial y paralela.
+
+\subsection{Condiciones iniciales}
+
+Se establecieron condiciones iniciales independientes para
+los procesos de carga y descarga.
+
+Para la carga, se consideró que el capacitor inicia
+completamente descargado:
+
+\[
+V_C(0)=0\ \text{V}.
+\]
+
+La fuente de alimentación mantiene un voltaje constante de
+$V_s=5\ \text{V}$ durante el proceso.
+
+Para la descarga, se consideró que el capacitor inicia con
+un voltaje de:
+
+\[
+V_C(0)=V_0=5\ \text{V}.
+\]
+
+En este caso, la fuente se encuentra desconectada y el
+capacitor entrega la energía almacenada a través de la
+resistencia.
+
+Los procesos se simularon de manera independiente, utilizando
+las condiciones iniciales correspondientes a cada uno.
+
+\subsection{Parámetros temporales}
+
+El intervalo de simulación se estableció desde $t_0=0$ hasta
+$t_f=11,75\ \text{s}$, utilizando un paso temporal constante
+de:
+
+\[
+\Delta t=0,001\ \text{s}.
+\]
+
+El tiempo final se seleccionó considerando cinco veces la
+constante de tiempo máxima del conjunto de circuitos:
+
+\[
+t_f=5\tau_{\max}
+=5(2,35)
+=11,75\ \text{s}.
+\]
+
+Esta elección permite observar prácticamente la totalidad
+del proceso transitorio incluso para los circuitos con
+mayor constante de tiempo. Después de cinco constantes de
+tiempo, el voltaje de carga alcanza aproximadamente el
+$99,33\,\%$ de su valor final, mientras que durante la
+descarga permanece cerca del $0,67\,\%$ de su valor inicial.
+
+El número de pasos temporales se determinó mediante:
+
+\[
+n=\frac{t_f-t_0}{\Delta t}
+=\frac{11,75}{0,001}
+=11750.
+\]
+
+Al incluir el instante inicial, cada trayectoria contiene
+11751 instantes temporales.
+
+\subsection{Tamaños de los problemas}
+
+Para evaluar el comportamiento computacional de las
+implementaciones se consideraron cinco tamaños de problema:
+
+\[
+N\in\{100,500,1000,5000,10000\}.
+\]
+
+Cada tamaño representa la cantidad de circuitos RC
+independientes que deben simularse. Los circuitos poseen
+valores propios de resistencia y capacitancia, generados
+dentro de los intervalos definidos anteriormente.
+
+\subsection{Configuración del hardware}
+
+Las pruebas de rendimiento se realizaron en un equipo que
+reportó seis núcleos físicos y doce núcleos lógicos. Para
+evaluar el efecto de la paralelización se utilizaron
+configuraciones de uno, dos, cuatro y seis hilos de
+procesamiento.
+
+La selección de hasta seis hilos corresponde al número de
+núcleos físicos disponibles en el equipo, permitiendo
+estudiar el comportamiento de la simulación al distribuir
+el trabajo entre dichos núcleos.
+
+\begin{table}[H]
+\centering
+\caption{Resumen de los parámetros y condiciones de simulación.}
+\label{tab:parametros}
+\begin{tabular}{ll}
+\toprule
+\textbf{Parámetro} & \textbf{Valor} \\
+\midrule
+Voltaje de la fuente & $5\ \text{V}$ \\
+Intervalo de resistencia & $1000$--$5000\ \Omega$ \\
+Intervalo de capacitancia & $100$--$470\ \mu\text{F}$ \\
+Condición inicial de carga & $0\ \text{V}$ \\
+Condición inicial de descarga & $5\ \text{V}$ \\
+Tiempo inicial & $0\ \text{s}$ \\
+Tiempo final & $11,75\ \text{s}$ \\
+Paso temporal & $0,001\ \text{s}$ \\
+Número de pasos temporales & $11750$ \\
+Número de instantes & $11751$ \\
+Tamaños de problema & $100$, $500$, $1000$, $5000$, $10000$ \\
+Núcleos físicos & $6$ \\
+Núcleos lógicos & $12$ \\
+Hilos evaluados & $1$, $2$, $4$, $6$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+
+\section{Implementación computacional}
+
+La implementación computacional se desarrolló en Python, utilizando las bibliotecas NumPy y Numba. La estructura del programa permite ejecutar la simulación de los circuitos RC mediante dos estrategias: una versión serial, que procesa los circuitos de manera secuencial, y una versión paralela, que distribuye el cálculo entre varios hilos de procesamiento.
+
+En ambas versiones se emplean las mismas ecuaciones discretizadas del método de Euler, los mismos parámetros físicos y los mismos conjuntos de valores de resistencia y capacitancia. De esta manera, la comparación del rendimiento se realiza bajo condiciones equivalentes.
+
+\subsection{Organización general del procedimiento}
+
+El procedimiento computacional puede dividirse en las siguientes etapas:
+
+\begin{enumerate}[leftmargin=*]
+    \item Generación de los parámetros de los circuitos: se crean los arreglos de resistencias y capacitancias para el tamaño de problema seleccionado.
+    \item Inicialización: se establecen los voltajes iniciales de los capacitores y los parámetros temporales de la simulación.
+    \item Simulación: se calcula la evolución del voltaje de cada capacitor mediante el método de Euler explícito.
+    \item Verificación: se comparan los resultados de las implementaciones serial y paralela para comprobar que producen resultados equivalentes.
+    \item Medición: se registra el tiempo de ejecución de cada configuración y se almacenan los resultados para su posterior análisis.
+\end{enumerate}
+
+\subsection{Implementación serial}
+
+En la versión serial, los circuitos se procesan uno después de otro mediante un ciclo \texttt{for}. Para cada circuito se toman sus respectivos valores de resistencia $R_i$ y capacitancia $C_i$, y se calcula su constante de tiempo:
+
+\[
+\tau_i=R_iC_i.
+\]
+
+Posteriormente, se actualiza el voltaje del capacitor en cada instante temporal mediante las expresiones del método de Euler. Para la carga se utiliza:
+
+\[
+V_{C,i}^{n+1}=V_{C,i}^{n}
++\frac{\Delta t}{R_iC_i}
+\left(V_s-V_{C,i}^{n}\right),
+\]
+
+mientras que para la descarga se emplea:
+
+\[
+V_{C,i}^{n+1}=V_{C,i}^{n}
+-\frac{\Delta t}{R_iC_i}V_{C,i}^{n}.
+\]
+
+Es importante señalar que, dentro de cada circuito, los pasos temporales deben ejecutarse en orden, ya que el voltaje de un instante depende del valor calculado en el instante anterior.
+
+Las funciones de cálculo se compilaron utilizando el decorador \texttt{@njit} de Numba. Este mecanismo permite compilar las funciones a código máquina para acelerar su ejecución, evitando parte del costo asociado a la interpretación habitual de Python.
+
+\subsection{Implementación paralela}
+
+La versión paralela utiliza Numba mediante el decorador \texttt{@njit(parallel=True)} y el constructor \texttt{prange}. Este último permite distribuir las iteraciones de un ciclo entre diferentes hilos de procesamiento.
+
+La paralelización se aplica sobre el ciclo que recorre los circuitos, porque cada uno posee sus propios valores de resistencia y capacitancia y su evolución no depende de los demás. Por tanto, es posible calcular varios circuitos simultáneamente sin alterar el resultado físico de la simulación.
+
+En contraste, el ciclo temporal de cada circuito permanece secuencial. Esto se debe a que el cálculo del voltaje en el instante $n+1$ necesita el voltaje obtenido en el instante $n$. Por esta razón, no sería adecuado distribuir libremente los pasos temporales de un mismo circuito entre diferentes hilos.
+
+De forma conceptual, la distribución del trabajo puede representarse así:
+
+\begin{itemize}[leftmargin=*]
+    \item Cada hilo recibe un conjunto de circuitos para procesar.
+    \item Para cada circuito asignado, el hilo calcula su evolución temporal completa.
+    \item Los resultados se almacenan en las posiciones correspondientes de los arreglos de salida.
+    \item Al finalizar las iteraciones, se dispone de los resultados de todos los circuitos.
+\end{itemize}
+
+Para controlar el número de hilos empleados se utilizó la configuración de Numba mediante \texttt{set\_num\_threads}. Se evaluaron configuraciones de 1, 2, 4 y 6 hilos, de acuerdo con los seis núcleos físicos reportados por el equipo utilizado.
+
+\subsection{Comparación entre las estrategias}
+
+La diferencia fundamental entre ambas implementaciones se encuentra en la forma de recorrer el conjunto de circuitos. La versión serial procesa las iteraciones de manera secuencial, mientras que la versión paralela permite ejecutar simultáneamente varias iteraciones independientes.
+
+Sin embargo, ambas conservan el mismo procedimiento numérico para cada circuito. Esto es importante porque permite estudiar el efecto de la paralelización sin modificar el modelo físico ni el método de integración.
+
+Además, ambas implementaciones utilizan Numba para compilar las funciones de cálculo. De esta manera, la comparación no se realiza entre una versión compilada y otra interpretada, sino entre dos estrategias de ejecución que emplean el mismo mecanismo de compilación.
+
+\subsection{Medición del rendimiento}
+
+Para medir los tiempos de ejecución se utilizó la función \texttt{time.perf\_counter()}, que proporciona un contador de alta resolución adecuado para medir intervalos cortos.
+
+Antes de iniciar las mediciones se ejecutaron las funciones de cálculo para realizar la compilación inicial de Numba. Este tiempo de compilación se excluyó de los resultados, debido a que no representa el tiempo propio de la simulación.
+
+La tercera ronda experimental se realizó con 15 repeticiones por configuración. En cada repetición se aleatorizó el orden de ejecución de las diferentes configuraciones, con el propósito de reducir posibles sesgos asociados al orden de las mediciones.
+
+Para cada tamaño de problema se utilizaron los mismos arreglos de resistencias y capacitancias al comparar las versiones serial y paralela. Asimismo, antes de medir el rendimiento se verificó que ambas implementaciones produjeran resultados equivalentes.
+
+Los tiempos individuales se almacenaron en archivos CSV. Posteriormente, se calcularon la mediana y la desviación estándar para analizar el comportamiento central de las mediciones y su variabilidad.
+
+
+
+\section{Verificación del modelo y de las implementaciones}
+
+La verificación del proyecto se realizó mediante dos procedimientos complementarios. En primer lugar, se evaluó la precisión del método de Euler explícito comparando sus resultados con las soluciones analíticas de las ecuaciones diferenciales del circuito RC. En segundo lugar, se comprobó que las implementaciones serial y paralela produjeran resultados numéricos equivalentes. Estas pruebas permiten evaluar tanto la aproximación numérica del modelo como la consistencia de la estrategia de paralelización.
+
+\subsection{Comparación con la solución analítica}
+
+Para evaluar la precisión del método de Euler se compararon los voltajes calculados numéricamente con los obtenidos mediante las soluciones analíticas de carga y descarga.
+
+La diferencia entre ambos resultados se cuantificó mediante el error absoluto:
+
+\[
+E_{\mathrm{abs}}(t)=
+\left|V_{\mathrm{Euler}}(t)
+-V_{\mathrm{analítico}}(t)\right|.
+\]
+
+Con el propósito de evaluar la discrepancia a lo largo de toda la simulación, se determinó el error absoluto máximo:
+
+\[
+E_{\max}=
+\max_n\left|
+V_{\mathrm{Euler},n}
+-V_{\mathrm{analítico},n}
+\right|.
+\]
+
+Para esta verificación se obtuvo un error absoluto máximo de aproximadamente \SI{0.0092355}{V} tanto para la carga como para la descarga.
+
+Se estableció como criterio de aceptación que el error máximo no superara el 0,2\,\% del voltaje de fuente. Considerando $V_s=\SI{5}{V}$, el límite permitido corresponde a:
+
+\[
+E_{\max}\leq 0.002V_s
+\]
+
+\[
+\boxed{E_{\max}\leq \SI{0.01}{V}}.
+\]
+
+Dado que los errores máximos obtenidos fueron inferiores a este límite, ambas simulaciones cumplieron el criterio de precisión adoptado. Esto indica que, para las condiciones evaluadas, el método de Euler proporciona una aproximación adecuada del comportamiento analítico del circuito RC.
+
+\subsection{Comparación entre las implementaciones serial y paralela}
+
+Adicionalmente, se verificó que la implementación paralela conservara los resultados de la versión serial. Para ello se utilizó la función \texttt{numpy.allclose}, que compara dos arreglos numéricos y determina si sus elementos coinciden dentro de las tolerancias establecidas.
+
+Las comparaciones incluyeron los siguientes resultados:
+
+\begin{itemize}[leftmargin=*]
+    \item Voltajes finales del proceso de carga.
+    \item Curvas completas de voltaje durante la carga.
+    \item Voltajes finales del proceso de descarga.
+    \item Curvas completas de voltaje durante la descarga.
+\end{itemize}
+
+En las pruebas iniciales, las cuatro comprobaciones devolvieron el resultado lógico \texttt{True}, indicando que los arreglos obtenidos mediante las versiones serial y paralela eran equivalentes dentro de la tolerancia numérica utilizada.
+
+Esta verificación también se incorporó a la rutina de medición del rendimiento, de modo que los resultados de ambas implementaciones se comprobaran antes de registrar los tiempos de ejecución para cada tamaño de problema.
+
+La coincidencia de los resultados permite establecer que la paralelización de los circuitos independientes no modificó el procedimiento numérico ni el comportamiento físico representado por la simulación.
+
+\subsection{Representación gráfica de la verificación}
+
+La Figura \ref{fig:verificacion} presenta la evolución temporal de los procesos de carga y descarga para un circuito representativo, con $R=\SI{1}{k\ohm}$ y $C=\SI{100}{\micro\farad}$. Se comparan las aproximaciones obtenidas mediante el método de Euler con las respectivas soluciones analíticas.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.88\textwidth]{carga_descarga_verificacion.png}
+\caption{Comparación entre las soluciones analíticas y las aproximaciones numéricas de Euler para los procesos de carga y descarga de un circuito RC representativo.}
+\label{fig:verificacion}
+\end{figure}
+
+La proximidad entre las curvas permite observar gráficamente la concordancia entre la solución numérica y la solución analítica. En conjunto, los resultados del error absoluto y las comparaciones entre implementaciones respaldan la validez numérica de la simulación y la consistencia de su versión paralela.
+
+
+
+\section{Resultados de rendimiento}
+
+Los resultados de rendimiento se obtuvieron a partir de la tercera ronda experimental, en la cual se realizaron 15 repeticiones por configuración y se aleatorizó el orden de ejecución. Para cada tamaño de problema se compararon la implementación serial y las configuraciones paralelas con 1, 2, 4 y 6 hilos.
+
+Como medida representativa del tiempo de ejecución se utilizó la mediana de las 15 repeticiones. Adicionalmente, se calculó la desviación estándar para caracterizar la variabilidad de las mediciones.
+
+\subsection{Comparación de tiempos de ejecución}
+
+La Tabla \ref{tab:resultados6} presenta los tiempos medianos de la implementación serial y de la implementación paralela con seis hilos, junto con los indicadores de aceleración, eficiencia y reducción porcentual del tiempo.
+
+\begin{table}[H]
+\centering
+\caption{Comparación del rendimiento serial y paralelo con seis hilos.}
+\label{tab:resultados6}
+\small
+\begin{tabular}{rrrrrr}
+\toprule
+Circuitos & $T_s$ (s) & $T_6$ (s) & Speedup & Eficiencia (\%) & Reducción (\%)\\
+\midrule
+100   & 0.005993 & 0.001489 & 4.0253 & 67.09 & 75.16\\
+500   & 0.029639 & 0.005384 & 5.5048 & 91.75 & 81.83\\
+1000  & 0.061694 & 0.010342 & 5.9652 & 99.42 & 83.24\\
+5000  & 0.294225 & 0.049800 & 5.9081 & 98.47 & 83.07\\
+10000 & 0.576225 & 0.098780 & 5.8334 & 97.22 & 82.86\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Se observa que el tiempo de ejecución aumenta con el número de circuitos simulados, debido al incremento de la cantidad de operaciones necesarias. Sin embargo, la implementación paralela presenta tiempos considerablemente menores que la versión serial para todos los tamaños evaluados.
+
+Para 100 circuitos, el tiempo mediano disminuyó de \SI{0.005993}{s} a \SI{0.001489}{s}. Para 10000 circuitos, pasó de \SI{0.576225}{s} a \SI{0.098780}{s}, lo que evidencia una reducción importante del tiempo requerido para completar la simulación.
+
+\subsection{Aceleración y eficiencia paralela}
+
+La aceleración, o \textit{speedup}, se calculó mediante la relación entre el tiempo de ejecución serial y el tiempo de ejecución paralelo:
+
+\[
+S_p=\frac{T_s}{T_p}.
+\]
+
+La eficiencia paralela se determinó dividiendo la aceleración obtenida entre el número de hilos utilizados:
+
+\[
+E_p=\frac{S_p}{p}\times100\%.
+\]
+
+Por otra parte, la reducción porcentual del tiempo de ejecución se calculó mediante:
+
+\[
+R=\frac{T_s-T_p}{T_s}\times100\%.
+\]
+
+Para la configuración de 10000 circuitos y seis hilos se obtuvo:
+
+\[
+S_6=\frac{0.576225}{0.098780}
+\approx 5.8334,
+\]
+
+\[
+E_6=\frac{5.8334}{6}\times100\%
+\approx 97.22\%,
+\]
+
+\[
+R=\frac{0.576225-0.098780}{0.576225}
+\times100\%
+\approx 82.86\%.
+\]
+
+Estos resultados indican que la ejecución paralela fue aproximadamente 5.83 veces más rápida que la serial y redujo el tiempo de ejecución en cerca del 82.86\,\%. La eficiencia obtenida fue del 97.22\,\%, valor cercano al comportamiento ideal de seis hilos.
+
+\subsection{Análisis gráfico del rendimiento}
+
+La Figura \ref{fig:tiempos} presenta los tiempos medianos de ejecución para las diferentes cantidades de hilos. Las barras de error representan la desviación estándar de las mediciones.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.9\textwidth]{tiempo_ejecucion.png}
+\caption{Tiempo mediano de ejecución en función del número de hilos y del tamaño del problema. Las barras de error representan la desviación estándar.}
+\label{fig:tiempos}
+\end{figure}
+
+La Figura \ref{fig:speedup} muestra la aceleración obtenida para los diferentes tamaños de problema, junto con la referencia de aceleración ideal.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.9\textwidth]{speedup.png}
+\caption{Aceleración observada para los diferentes tamaños de problema y comparación con la aceleración ideal.}
+\label{fig:speedup}
+\end{figure}
+
+Finalmente, la Figura \ref{fig:eficiencia} presenta la eficiencia paralela calculada para cada configuración.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.9\textwidth]{eficiencia.png}
+\caption{Eficiencia paralela para los diferentes tamaños de problema y cantidades de hilos.}
+\label{fig:eficiencia}
+\end{figure}
+
+En conjunto, las gráficas permiten observar que el uso de varios hilos reduce los tiempos de ejecución y que la eficiencia depende del tamaño del problema. Los tamaños medianos y grandes presentan un aprovechamiento elevado de los seis hilos, mientras que para 100 circuitos la eficiencia es menor.
+
+
+
+\section{Discusión}
+
+Los resultados obtenidos permiten analizar el efecto de la paralelización sobre el rendimiento de la simulación de circuitos RC. En términos generales, se observa que el tiempo de ejecución disminuye a medida que aumenta la cantidad de hilos utilizados, aunque la magnitud de esta mejora depende del tamaño del problema y de los costos asociados a la ejecución paralela.
+
+\subsection{Efecto del tamaño del problema}
+
+Para el menor tamaño evaluado, correspondiente a $N=100$ circuitos, la reducción del tiempo de ejecución es apreciable, pero la eficiencia disminuye al incrementar el número de hilos. Con seis hilos se obtuvo una aceleración de aproximadamente $4.03$, equivalente a una eficiencia del $67.09\%$. Este comportamiento puede explicarse porque la cantidad de trabajo disponible es relativamente pequeña frente a los costos de distribuirlo entre varios hilos y coordinar su ejecución.
+
+A medida que aumenta el número de circuitos, la paralelización aprovecha mejor los recursos disponibles. Para $N=500$, la eficiencia con seis hilos alcanza aproximadamente el $91.75\%$, mientras que para $N=1000$ llega al $99.42\%$. Esto indica que, al disponer de una mayor cantidad de tareas independientes, los costos asociados a la paralelización representan una proporción menor del tiempo total de ejecución.
+
+En los tamaños de $N=5000$ y $N=10000$ también se mantiene una eficiencia elevada, con valores de $98.47\%$ y $97.22\%$, respectivamente, utilizando seis hilos. Por tanto, los resultados muestran que la implementación paralela consigue aprovechar de manera efectiva los recursos de procesamiento para los tamaños de problema estudiados.
+
+\subsection{Comportamiento al incrementar el número de hilos}
+
+La gráfica de aceleración muestra que el rendimiento mejora al pasar de uno a dos, cuatro y seis hilos. Para los tamaños de problema más grandes, la aceleración se aproxima al comportamiento ideal esperado, aunque no lo alcanza completamente.
+
+Por ejemplo, para $N=10000$, la aceleración obtenida con seis hilos fue de aproximadamente $5.83$, frente a una aceleración ideal de $6$. Esto representa un aprovechamiento cercano al $97.22\%$ de la capacidad teórica de los seis hilos, de acuerdo con la definición de eficiencia utilizada.
+
+No obstante, el aumento de hilos no garantiza una mejora proporcional e ilimitada. En una ejecución paralela existen costos relacionados con la distribución del trabajo, la coordinación de los hilos y la administración de los recursos del sistema. Estos factores explican por qué la aceleración real puede ser inferior a la ideal.
+
+\subsection{Interpretación de la eficiencia y variabilidad experimental}
+
+En algunas configuraciones se obtuvieron eficiencias ligeramente superiores al $100\%$, particularmente para $N=1000$ con uno, dos y cuatro hilos. Estos valores no deben interpretarse como una superación del límite teórico de paralelización, sino como una consecuencia de las diferencias observadas en los tiempos medidos entre las implementaciones.
+
+La medición del tiempo de ejecución puede verse afectada por factores externos, como la actividad del sistema operativo, la asignación de recursos del procesador y pequeñas variaciones durante cada repetición. Por esta razón, se realizaron quince repeticiones por configuración y se utilizó la mediana como medida representativa del tiempo de ejecución.
+
+También se identificó una variabilidad particularmente alta para $N=100$ con seis hilos. Aunque su mediana fue de aproximadamente $0.001489$ s, la desviación estándar alcanzó $0.005776$ s. Esta diferencia evidencia la presencia de al menos una medición atípica y demuestra la importancia de considerar la dispersión de los datos, además de su valor central.
+
+\subsection{Relación con la ley de Amdahl}
+
+La ley de Amdahl permite estimar qué proporción del programa puede beneficiarse de la ejecución paralela a partir de la aceleración obtenida. Para una cantidad de seis hilos, se utilizó la expresión:
+
+\[
+f = \frac{1-\frac{1}{S_6}}{1-\frac{1}{6}},
+\]
+
+donde $S_6$ representa la aceleración medida con seis hilos y $f$ corresponde a la fracción paralelizable estimada.
+
+Los resultados muestran que, para los tamaños de problema evaluados, la fracción paralelizable estimada es elevada. Por ejemplo, para $N=10000$, la aceleración de $5.83$ conduce a una estimación cercana al $99.43\%$. Esto es coherente con la estructura del programa, ya que cada circuito RC puede simularse independientemente de los demás.
+
+Sin embargo, es importante señalar que esta estimación se obtiene a partir de los tiempos medidos y está sujeta a los supuestos de la ley de Amdahl. Por lo tanto, no representa una medición directa del porcentaje de instrucciones paralelizables del código.
+
+\subsection{Limitaciones del experimento}
+
+Aunque los resultados permiten identificar una mejora clara del rendimiento mediante la paralelización, existen algunas limitaciones. En primer lugar, las mediciones se realizaron sobre un único equipo, por lo que los resultados dependen de las características particulares del procesador y del entorno de ejecución utilizado.
+
+En segundo lugar, los tiempos de ejecución son relativamente pequeños, especialmente para los tamaños de problema menores. En estos casos, pequeñas variaciones del sistema pueden tener una influencia considerable sobre los resultados.
+
+Finalmente, el análisis se limita a los tamaños de problema y cantidades de hilos evaluados. Por ello, no es posible asegurar que el mismo comportamiento se mantenga para cantidades de circuitos mucho mayores o en equipos con arquitecturas diferentes.
+
+En conjunto, los resultados respaldan que la paralelización mediante hilos es una estrategia efectiva para reducir el tiempo de ejecución de la simulación de circuitos RC, especialmente cuando se trabaja con una cantidad suficientemente grande de circuitos independientes.
+
+
+
+\section{Conclusiones}
+
+Se implementó satisfactoriamente la simulación numérica de circuitos RC mediante el método de Euler explícito, considerando los procesos de carga y descarga de un condensador. El modelo permitió estudiar la evolución temporal del voltaje en diferentes circuitos, utilizando valores de resistencia y capacitancia dentro de los intervalos establecidos para el experimento.
+
+La verificación del modelo numérico mediante su comparación con las soluciones analíticas permitió comprobar que los resultados obtenidos presentan una buena aproximación al comportamiento teórico. Los errores absolutos máximos fueron de aproximadamente $0.0092355$ V tanto para el proceso de carga como para el de descarga, valores inferiores a la tolerancia establecida de $0.01$ V. De esta manera, se verificó que la implementación numérica reproduce adecuadamente la evolución del voltaje en los circuitos RC estudiados.
+
+La comparación entre las implementaciones serial y paralela permitió comprobar que la paralelización mediante hilos reduce el tiempo de ejecución de la simulación. Esta mejora fue especialmente significativa para los tamaños de problema mayores. En particular, para $N=10000$ circuitos, el tiempo mediano de ejecución pasó de aproximadamente $0.5762$ s en la versión serial a $0.0988$ s utilizando seis hilos, lo que representa una aceleración de $5.83$ y una reducción del tiempo de ejecución cercana al $82.86\%$.
+
+Asimismo, se observó que el aprovechamiento de los recursos de procesamiento depende del tamaño del problema. Para cantidades pequeñas de circuitos, los costos asociados a la ejecución paralela tienen una mayor influencia sobre el rendimiento. En cambio, al incrementar la cantidad de circuitos independientes, la implementación paralela consigue aprovechar de manera más efectiva los hilos disponibles. Esto demuestra la importancia de considerar tanto el tamaño del problema como los recursos computacionales al diseñar aplicaciones paralelas.
+
+La utilización de quince repeticiones por configuración, el orden aleatorizado de las mediciones y el empleo de la mediana como medida representativa permitieron realizar una comparación más consistente entre ambas implementaciones. Sin embargo, la variabilidad observada en algunas mediciones evidencia que factores externos al algoritmo también pueden influir sobre los tiempos de ejecución, por lo que es importante considerar la dispersión de los datos al interpretar los resultados.
+
+Finalmente, el proyecto permitió relacionar un modelo físico de electromagnetismo y circuitos eléctricos con técnicas de programación de alto rendimiento. Se comprobó que es posible distribuir el cálculo de múltiples circuitos RC entre diferentes hilos, manteniendo la independencia entre las simulaciones y reduciendo significativamente el tiempo total de procesamiento. Por tanto, se cumplió el propósito de implementar, verificar y evaluar una solución paralela para la simulación numérica de circuitos RC.
+
+
+\begin{thebibliography}{9}
+\bibitem{numba}
+Numba Developers. \textit{Numba documentation}. \url{https://numba.readthedocs.io/}
+
+\bibitem{numpy}
+NumPy Developers. \textit{NumPy documentation}. \url{https://numpy.org/doc/}
+
+\bibitem{matplotlib}
+Matplotlib Development Team. \textit{Matplotlib documentation}. \url{https://matplotlib.org/stable/}
+\end{thebibliography}
+
+\end{document}
